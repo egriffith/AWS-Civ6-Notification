@@ -1,0 +1,327 @@
+{
+    "Outputs": {
+        "ApiGatewayEndpoint": {
+            "Description": "URL to give to Civ6's settings.",
+            "Value": {
+                "Fn::Join": [
+                    "",
+                    [
+                        "https://",
+                        {
+                            "Ref": "Civ6NotifGW"
+                        },
+                        ".execute-api.",
+                        {
+                            "Ref": "AWS::Region"
+                        },
+                        ".amazonaws.com/",
+                        "prod",
+                        "/civ6"
+                    ]
+                ]
+            }
+        },
+        "SNSTopicArn": {
+            "Description": "Arn of the SNS topic to subscribe to.",
+            "Value": {
+                "Fn::Join": [
+                    "",
+                    [
+                        "arn:aws:sns:",
+                        {
+                            "Ref": "AWS::Region"
+                        },
+                        ":",
+                        {
+                            "Ref": "AWS::AccountId"
+                        },
+                        ":",
+                        {
+                            "Fn::GetAtt": [
+                                "Civ6NotifTopic",
+                                "TopicName"
+                            ]
+                        }
+                    ]
+                ]
+            }
+        }
+    },
+    "Parameters": {
+        "DiscordWebhookURL": {
+            "Description": "Please paste here the URL that Discord provided to you when you created your server's Webhook.",
+            "NoEcho": true,
+            "Type": "String"
+        },
+        "SendToDiscord": {
+            "AllowedValues": [
+                "True",
+                "False"
+            ],
+            "Default": "False",
+            "Description": "Enabling this will tell the lambda function to send messages to a Discord Webhook URL.",
+            "Type": "String"
+        },
+        "SendToSNS": {
+            "AllowedValues": [
+                "True",
+                "False"
+            ],
+            "Default": "False",
+            "Description": "Enabling this will tell the lambda function to send messages to an SNS topic. This can be useful if you want to receive text message or email notifications from the games. For new users of SNS, this setting is free. For existing SNS users, this setting may raise your AWS bill by <$1.00 a month.",
+            "Type": "String"
+        }
+    },
+    "Resources": {
+        "Civ6LambdaPermission": {
+            "Properties": {
+                "Action": "lambda:InvokeFunction",
+                "FunctionName": {
+                    "Fn::GetAtt": [
+                        "Civ6NotifFunction",
+                        "Arn"
+                    ]
+                },
+                "Principal": "apigateway.amazonaws.com"
+            },
+            "Type": "AWS::Lambda::Permission"
+        },
+        "Civ6NotifFunction": {
+            "Properties": {
+                "Code": {
+                    "ZipFile": {
+                        "Fn::Join": [
+                            "",
+                            [
+                                "from botocore.vendored import requests\n",
+                                "import json\n",
+                                "import os\n",
+                                "import boto3\n",
+                                "import logging\n",
+                                "\n",
+                                "def lambda_handler(event, context):\n",
+                                "\tlogger = logging.getLogger()\n",
+                                "\tlogger.setLevel(logging.INFO)\n",
+                                "\tlogger.INFO(f'Received event: {event}')\n\tmsg = f'It is now {event[\"value1\"]}\\'s turn in Civ6 game {event[\"value2\"]}'\n",
+                                "\tif os.environ['SendToDiscord' == 'True':\n",
+                                "\t\tr = requests.post(os.environ['DiscordWebhookURL'],json={'content':msg})\n",
+                                "\t\tlogger.INFO(r)\n",
+                                "\tif os.environ['SendToSNS'] == 'True':\n",
+                                "\t\tclient = boto3.client('sns')\n",
+                                "\t\tclient.publish(TopicArn=os.environ['SNSTopic'],Message=msg,Subject='Civilization 6 Play By Cloud Notifications')\n",
+                                "\treturn{'statusCode':200}"
+                            ]
+                        ]
+                    }
+                },
+                "Environment": {
+                    "Variables": {
+                        "DiscordWebhookURL": {
+                            "Ref": "DiscordWebhookURL"
+                        },
+                        "SNSTopic": {
+                            "Fn::Join": [
+                                "",
+                                [
+                                    "arn:aws:sns:",
+                                    {
+                                        "Ref": "AWS::Region"
+                                    },
+                                    ":",
+                                    {
+                                        "Ref": "AWS::AccountId"
+                                    },
+                                    ":",
+                                    {
+                                        "Fn::GetAtt": [
+                                            "Civ6NotifTopic",
+                                            "TopicName"
+                                        ]
+                                    }
+                                ]
+                            ]
+                        },
+                        "SendToDiscord": {
+                            "Ref": "SendToDiscord"
+                        },
+                        "SendToSNS": {
+                            "Ref": "SendToSNS"
+                        }
+                    }
+                },
+                "Handler": "index.lambda_handler",
+                "Role": {
+                    "Fn::GetAtt": [
+                        "Civ6NotifLambdaExecutionRole",
+                        "Arn"
+                    ]
+                },
+                "Runtime": "python3.7"
+            },
+            "Type": "AWS::Lambda::Function"
+        },
+        "Civ6NotifGW": {
+            "Properties": {
+                "Name": "Civ6Notifications"
+            },
+            "Type": "AWS::ApiGateway::RestApi"
+        },
+        "Civ6NotifLambdaExecutionRole": {
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Statement": [
+                        {
+                            "Action": [
+                                "sts:AssumeRole"
+                            ],
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "lambda.amazonaws.com",
+                                    "apigateway.amazonaws.com"
+                                ]
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "Path": "/"
+            },
+            "Type": "AWS::IAM::Role"
+        },
+        "Civ6NotifPostMethod": {
+            "DependsOn": "Civ6NotifFunction",
+            "Properties": {
+                "AuthorizationType": "NONE",
+                "HttpMethod": "POST",
+                "Integration": {
+                    "Credentials": {
+                        "Fn::GetAtt": [
+                            "Civ6NotifLambdaExecutionRole",
+                            "Arn"
+                        ]
+                    },
+                    "IntegrationHttpMethod": "POST",
+                    "IntegrationResponses": [
+                        {
+                            "StatusCode": "200"
+                        }
+                    ],
+                    "Type": "AWS",
+                    "Uri": {
+                        "Fn::Join": [
+                            "",
+                            [
+                                "arn:aws:apigateway:",
+                                {
+                                    "Ref": "AWS::Region"
+                                },
+                                ":lambda:path/2015-03-31/functions/",
+                                {
+                                    "Fn::GetAtt": [
+                                        "Civ6NotifFunction",
+                                        "Arn"
+                                    ]
+                                },
+                                "/invocations"
+                            ]
+                        ]
+                    }
+                },
+                "MethodResponses": [
+                    {
+                        "StatusCode": "200"
+                    }
+                ],
+                "ResourceId": {
+                    "Ref": "Civ6NotifResource"
+                },
+                "RestApiId": {
+                    "Ref": "Civ6NotifGW"
+                }
+            },
+            "Type": "AWS::ApiGateway::Method"
+        },
+        "Civ6NotifResource": {
+            "Properties": {
+                "ParentId": {
+                    "Fn::GetAtt": [
+                        "Civ6NotifGW",
+                        "RootResourceId"
+                    ]
+                },
+                "PathPart": "civ6",
+                "RestApiId": {
+                    "Ref": "Civ6NotifGW"
+                }
+            },
+            "Type": "AWS::ApiGateway::Resource"
+        },
+        "Civ6NotifRolePolicy": {
+            "Properties": {
+                "PolicyDocument": {
+                    "Statement": [
+                        {
+                            "Action": [
+                                "logs:CreateLogGroup",
+                                "logs:CreateLogStream",
+                                "logs:PutLogEvents"
+                            ],
+                            "Effect": "Allow",
+                            "Resource": "*"
+                        },
+                        {
+                            "Action": [
+                                "sns:Publish"
+                            ],
+                            "Effect": "Allow",
+                            "Resource": "*"
+                        },
+                        {
+                            "Action": [
+                                "lambda:*"
+                            ],
+                            "Effect": "Allow",
+                            "Resource": "*"
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "PolicyName": "Civ6Notif_RolePolicy",
+                "Roles": [
+                    {
+                        "Ref": "Civ6NotifLambdaExecutionRole"
+                    }
+                ]
+            },
+            "Type": "AWS::IAM::Policy"
+        },
+        "Civ6NotifTopic": {
+            "Properties": {
+                "DisplayName": "Civ6Notification"
+            },
+            "Type": "AWS::SNS::Topic"
+        },
+        "prodDeployment": {
+            "DependsOn": "Civ6NotifPostMethod",
+            "Properties": {
+                "RestApiId": {
+                    "Ref": "Civ6NotifGW"
+                }
+            },
+            "Type": "AWS::ApiGateway::Deployment"
+        },
+        "prodStage": {
+            "Properties": {
+                "DeploymentId": {
+                    "Ref": "prodDeployment"
+                },
+                "RestApiId": {
+                    "Ref": "Civ6NotifGW"
+                },
+                "StageName": "prod"
+            },
+            "Type": "AWS::ApiGateway::Stage"
+        }
+    }
+}
