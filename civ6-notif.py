@@ -7,6 +7,7 @@ from troposphere.sns import Topic
 from pathlib import Path
 
 template = Template()
+template.set_description("AWS CloudFormation template to spin up an API Gateway, Lambda function, and SNS topic to receive, transform, and retransmit Civilization 6 Play By Cloud notifications.")
 
 SendToSNS = Parameter(
     "SendToSNS",
@@ -94,17 +95,16 @@ code = [
     "import logging\n",
     "\n",
     "def lambda_handler(event, context):\n",
-    "\tlogger = logging.getLogger()\n",
-    "\tlogger.setLevel(logging.INFO)\n",
     "\tlogger.INFO(f'Received event: {event}')\n"
-    "\tmsg = f'It is now {event[\"value1\"]}\\'s turn in Civ6 game {event[\"value2\"]}'\n",
-    "\tif os.environ['SendToDiscord' == 'True':\n",
+    "\tmsg = f'It is now {event[\"value2\"]}\\'s turn in Civ6 game {event[\"value1\"]}'\n\n",
+    "\tif os.environ['SendToDiscord'] == 'True':\n",
     "\t\tr = requests.post(os.environ['DiscordWebhookURL'],json={'content':msg})\n",
     "\t\tlogger.INFO(r)\n",
+    "\n\n",
     "\tif os.environ['SendToSNS'] == 'True':\n",
     "\t\tclient = boto3.client('sns')\n",
-    "\t\tclient.publish(TopicArn=os.environ['SNSTopic'],Message=msg,Subject='Civilization 6 Play By Cloud Notifications')\n",
-    "\treturn{'statusCode':200}"
+    "\t\tclient.publish(TopicArn=os.environ['SNSTopic'],Message=msg,Subject='Civilization 6 Play By Cloud Notifications')\n\n",
+    "\treturn {}"
 ]
 
 Civ6Notif_Lambda = Function(
