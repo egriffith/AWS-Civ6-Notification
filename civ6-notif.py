@@ -97,7 +97,7 @@ code = [
     "logger.setLevel(logging.INFO)\n",
     "\n",
     "def lambda_handler(event, context):\n",
-    "\tlogger.INFO('Received event: %s', event)\n"
+    "\tlogger.INFO('Received event: %s', event)\n",
     "\tmsg = f'It is now {event[\"value2\"]}\\'s turn in Civ6 game {event[\"value1\"]}'\n\n",
     "\tif os.environ['SendToDiscord'] == 'True':\n",
     "\t\tr = requests.post(os.environ['DiscordWebhookURL'],json={'content':msg})\n",
