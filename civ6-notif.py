@@ -93,13 +93,15 @@ code = [
     "import os\n",
     "import boto3\n",
     "import logging\n",
+    "logger = logging.getLogger()\n",
+    "logger.setLevel(logging.INFO)\n",
     "\n",
     "def lambda_handler(event, context):\n",
-    "\tlogger.INFO(f'Received event: {event}')\n"
+    "\tlogger.INFO('Received event: %s', event)\n"
     "\tmsg = f'It is now {event[\"value2\"]}\\'s turn in Civ6 game {event[\"value1\"]}'\n\n",
     "\tif os.environ['SendToDiscord'] == 'True':\n",
     "\t\tr = requests.post(os.environ['DiscordWebhookURL'],json={'content':msg})\n",
-    "\t\tlogger.INFO(r)\n",
+    "\t\tlogger.INFO('%s', r)\n",
     "\n\n",
     "\tif os.environ['SendToSNS'] == 'True':\n",
     "\t\tclient = boto3.client('sns')\n",
